@@ -3,126 +3,349 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rubik's Cube AI Solver</title>
+    <title>Rubik's Cube AI & Gemini</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Segoe+UI:wght@400;600&display=swap" rel="stylesheet">
     <style>
-        body { margin: 0; overflow: hidden; background-color: #111827; font-family: 'Segoe UI', sans-serif; }
-        .loader { border: 3px solid rgba(255,255,255,0.3); border-top: 3px solid #fff; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
+        body { margin: 0; overflow: hidden; background-color: #0f172a; font-family: 'Segoe UI', sans-serif; }
+        .orbitron { font-family: 'Orbitron', sans-serif; }
+        .loader { border: 3px solid rgba(255,255,255,0.3); border-top: 3px solid #06b6d4; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        /* Button Shine Effect */
+        .btn-shine {
+            position: absolute;
+            top: 0; left: -100%; width: 50%; height: 100%;
+            background: linear-gradient(to right, transparent, rgba(255,255,255,0.2), transparent);
+            transform: skewX(-20deg);
+            transition: 0.5s;
+        }
+        button:hover .btn-shine { left: 200%; transition: 0.7s; }
+
+        /* Manual Control Grid */
+        .control-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 6px;
+        }
+
+        /* Scrollbar for chat */
+        .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+        .scrollbar-thin::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); }
+        .scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(6,182,212,0.5); border-radius: 3px; }
     </style>
 </head>
 <body>
-    <!-- UI -->
-    <div class="absolute top-0 left-0 w-full h-full pointer-events-none flex flex-col justify-between p-6 z-10">
-        <div class="pointer-events-auto bg-gray-900/80 backdrop-blur border border-white/10 p-6 rounded-2xl shadow-2xl max-w-xs">
-            <h1 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">Rubik's AI</h1>
-            <p class="text-gray-400 text-xs mt-1 font-mono">ALGORITHM: LAYER-BY-LAYER</p>
-            <div class="mt-4 flex items-center justify-between gap-4">
-                <span class="text-xs font-bold text-gray-500">SPEED</span>
-                <input type="range" id="speedSlider" min="1" max="20" value="10" class="accent-cyan-500 h-1 bg-gray-700 rounded-full w-24">
+    <!-- UI Layer -->
+    <div class="absolute top-0 left-0 w-full h-full pointer-events-none flex flex-col justify-between p-4 md:p-6 z-10">
+        
+        <!-- LEFT SIDE: Chatbot Interface (Thinner width: w-72) -->
+        <div class="pointer-events-auto flex flex-col gap-4 items-start h-[70%] w-72">
+            <div class="bg-gray-900/90 backdrop-blur-lg border border-cyan-500/30 rounded-2xl shadow-[0_0_15px_rgba(6,182,212,0.15)] w-full h-full flex flex-col overflow-hidden">
+                <!-- Header -->
+                <div class="p-4 border-b border-cyan-500/20 bg-gray-900/50">
+                    <h1 class="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-500 orbitron tracking-wide">CUBE.AI</h1>
+                    <div class="flex items-center gap-2 mt-1">
+                        <div class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
+                        <span class="text-[10px] font-bold uppercase tracking-widest text-green-400">Gemini Online</span>
+                    </div>
+                </div>
+
+                <!-- Chat History -->
+                <div id="chatHistory" class="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin">
+                    <div class="text-left">
+                        <div class="inline-block bg-gray-800 p-2.5 rounded-lg rounded-tl-none text-xs text-gray-200 border border-white/5">
+                            Hello! I am your AI Cube Assistant. You can scramble, solve, or ask me anything about Rubik's Cubes!
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Input Area -->
+                <div class="p-3 bg-gray-800/50 border-t border-cyan-500/20">
+                    <div class="flex gap-2">
+                        <input type="text" id="chatInput" placeholder="Type a message..." class="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500 transition-colors">
+                        <button id="chatSend" class="bg-cyan-600 hover:bg-cyan-500 text-white px-3 py-2 rounded-lg transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
-        <div class="pointer-events-auto flex gap-4 justify-center pb-4">
-            <button id="btnScramble" class="px-6 py-3 bg-gray-800 hover:bg-gray-700 text-white font-bold rounded-xl border-b-4 border-gray-950 active:border-b-0 active:translate-y-1 transition-all">SCRAMBLE</button>
-            <button id="btnSolve" disabled class="px-6 py-3 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-800 disabled:text-gray-500 text-white font-bold rounded-xl border-b-4 border-cyan-800 active:border-b-0 active:translate-y-1 transition-all flex items-center gap-2">
+
+        <!-- RIGHT SIDE: Controls & Speed -->
+        <div class="pointer-events-auto absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-4">
+            
+            <!-- Speed Control (Compact) -->
+            <div class="bg-gray-900/80 backdrop-blur-md border border-white/10 p-4 rounded-2xl shadow-xl w-40">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-[10px] font-bold uppercase text-gray-400">Speed</span>
+                    <span id="speedVal" class="text-xs font-bold text-cyan-400">10x</span>
+                </div>
+                <input type="range" id="speedSlider" min="1" max="20" value="10" class="w-full h-1.5 bg-gray-700 rounded-full appearance-none cursor-pointer accent-cyan-500 hover:accent-cyan-400 transition-all">
+            </div>
+
+            <!-- Manual Controls -->
+            <div class="bg-gray-900/80 backdrop-blur-md border border-white/10 p-4 rounded-2xl shadow-xl w-40">
+                <h3 class="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-3 text-center">Manual Moves</h3>
+                <div class="control-grid">
+                    <!-- Up Layer -->
+                    <button onclick="manualMove('U')" class="px-2 py-2 bg-gray-700 hover:bg-cyan-600 text-white text-[10px] font-bold rounded transition-colors border border-white/5">U Left</button>
+                    <button onclick="manualMove('U\'')" class="px-2 py-2 bg-gray-700 hover:bg-cyan-600 text-white text-[10px] font-bold rounded transition-colors border border-white/5">U Right</button>
+                    
+                    <!-- Left Layer -->
+                    <button onclick="manualMove('L')" class="px-2 py-2 bg-gray-700 hover:bg-orange-600 text-white text-[10px] font-bold rounded transition-colors border border-white/5">L Fwd</button>
+                    <button onclick="manualMove('L\'')" class="px-2 py-2 bg-gray-700 hover:bg-orange-600 text-white text-[10px] font-bold rounded transition-colors border border-white/5">L Back</button>
+                    
+                    <!-- Right Layer -->
+                    <button onclick="manualMove('R\'')" class="px-2 py-2 bg-gray-700 hover:bg-red-600 text-white text-[10px] font-bold rounded transition-colors border border-white/5">R Fwd</button>
+                    <button onclick="manualMove('R')" class="px-2 py-2 bg-gray-700 hover:bg-red-600 text-white text-[10px] font-bold rounded transition-colors border border-white/5">R Back</button>
+                    
+                    <!-- Down Layer -->
+                    <button onclick="manualMove('D\'')" class="px-2 py-2 bg-gray-700 hover:bg-yellow-600 text-white text-[10px] font-bold rounded transition-colors border border-white/5">D Left</button>
+                    <button onclick="manualMove('D')" class="px-2 py-2 bg-gray-700 hover:bg-yellow-600 text-white text-[10px] font-bold rounded transition-colors border border-white/5">D Right</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Controls (Centered, removed margin) -->
+        <div class="pointer-events-auto flex flex-wrap gap-3 justify-center items-end pb-6 w-full">
+            <button id="btnScramble" class="group relative px-5 py-3 bg-gray-800 hover:bg-gray-700 text-white font-bold rounded-xl border-b-4 border-gray-950 active:border-b-0 active:translate-y-1 transition-all overflow-hidden shadow-lg">
+                <span class="relative z-10">SCRAMBLE</span>
+                <div class="btn-shine"></div>
+            </button>
+            
+            <!-- Gemini Feature: Pattern -->
+            <button id="btnPattern" class="group relative px-5 py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl border-b-4 border-purple-800 active:border-b-0 active:translate-y-1 transition-all shadow-[0_0_20px_rgba(168,85,247,0.4)] overflow-hidden">
+                <span class="flex items-center gap-2 relative z-10">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+                    PATTERN
+                </span>
+                <div class="btn-shine"></div>
+            </button>
+
+             <!-- Gemini Feature: Coach -->
+             <button id="btnCoach" class="group relative px-5 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl border-b-4 border-emerald-800 active:border-b-0 active:translate-y-1 transition-all shadow-[0_0_20px_rgba(16,185,129,0.4)] overflow-hidden">
+                <span class="flex items-center gap-2 relative z-10">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                    COACH
+                </span>
+                <div class="btn-shine"></div>
+            </button>
+
+            <button id="btnSolve" disabled class="px-5 py-3 bg-cyan-600 hover:bg-cyan-500 disabled:bg-gray-800 disabled:border-gray-900 disabled:text-gray-600 text-white font-bold rounded-xl border-b-4 border-cyan-800 active:border-b-0 active:translate-y-1 transition-all flex items-center gap-2 shadow-[0_0_20px_rgba(6,182,212,0.3)]">
                 <span>SOLVE</span>
             </button>
         </div>
     </div>
     
-    <div id="status" class="absolute top-6 right-6 bg-black/80 text-white text-xs font-mono px-4 py-2 rounded-full hidden items-center gap-2 border border-white/10"></div>
+    <!-- Status Toast -->
+    <div id="status" class="absolute top-6 right-6 bg-gray-900/90 text-white text-xs font-mono px-5 py-3 rounded-full hidden items-center gap-3 border border-cyan-500/30 shadow-2xl z-50"></div>
 
     <script>
-        // --- CONFIG ---
-        const COLORS = { U:0xFFFFFF, D:0xFFD500, R:0xB90000, L:0xFF5900, F:0x009E60, B:0x0045AD, Core:0x222 };
-        // Face Indices: 0:U, 1:R, 2:F, 3:D, 4:L, 5:B (Standard)
-        const FACE_MAP = { 'U':0, 'R':1, 'F':2, 'D':3, 'L':4, 'B':5 };
-        const INV_FACE_MAP = ['U','R','F','D','L','B'];
+        // --- GEMINI API CONFIG ---
+        const apiKey = ""; // Provided by environment
+        const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
         
-        // --- VIRTUAL CUBE (STATE ENGINE) ---
-        class VirtualCube {
-            constructor() {
-                this.reset();
-            }
-            reset() {
-                // 6 faces, 9 stickers. 0-8 indices. Center is 4.
-                // Initial state: Face 0 has all color 0, Face 1 has all color 1...
-                this.state = Array.from({length:6}, (_,i) => Array(9).fill(i));
-            }
-            copy() {
-                const c = new VirtualCube();
-                c.state = this.state.map(f => [...f]);
-                return c;
-            }
-            // Basic move: Face Rotation + Ring Swap
-            move(m) {
-                const fIdx = FACE_MAP[m[0]];
-                const isPrime = m.includes("'");
-                const isDouble = m.includes("2");
-                const count = isDouble ? 2 : (isPrime ? 3 : 1);
-                for(let i=0; i<count; i++) this.rotateFace(fIdx);
-            }
-            rotateFace(f) {
-                // Rotate stickers on face f (Clockwise)
-                const s = this.state[f];
-                const temp = [...s];
-                // Corners: 0->2->8->6->0
-                s[2]=temp[0]; s[8]=temp[2]; s[6]=temp[8]; s[0]=temp[6];
-                // Edges: 1->5->7->3->1
-                s[5]=temp[1]; s[7]=temp[5]; s[3]=temp[7]; s[1]=temp[3];
+        // --- CUBE CONFIG ---
+        const COLORS = { U:0xFFFFFF, D:0xFFD500, R:0xB90000, L:0xFF5900, F:0x009E60, B:0x0045AD, Core:0x111111 };
+        const FACE_MAP = { 'U':0, 'R':1, 'F':2, 'D':3, 'L':4, 'B':5 };
+        
+        // --- GEMINI LOGIC ---
 
-                // Rotate adjacent ring
-                const ring = {
-                    0: [[5,0,1,2],[1,0,1,2],[2,0,1,2],[4,0,1,2]], // U: B->R->F->L (Top row)
-                    1: [[0,2,5,8],[5,6,3,0],[3,2,5,8],[2,2,5,8]], // R: U->B->D->F (Right col)
-                    2: [[0,6,7,8],[1,0,3,6],[3,2,1,0],[4,8,5,2]], // F: U->R->D->L (Bottom/Left/Top/Right logic)
-                    3: [[2,6,7,8],[1,6,7,8],[5,6,7,8],[4,6,7,8]], // D: F->R->B->L (Bottom row)
-                    4: [[0,0,3,6],[2,0,3,6],[3,0,3,6],[5,8,5,2]], // L: U->F->D->B (Left col)
-                    5: [[0,2,1,0],[4,0,3,6],[3,6,7,8],[1,8,5,2]]  // B: U->L->D->R
-                }[f];
+        async function callGemini(prompt, type = 'text') {
+            try {
+                const response = await fetch(GEMINI_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }]
+                    })
+                });
                 
-                // Perform swap: 4th->3rd->2nd->1st->4th
-                const st = this.state;
-                const [f1,i1a,i1b,i1c] = ring[0];
-                const [f2,i2a,i2b,i2c] = ring[1];
-                const [f3,i3a,i3b,i3c] = ring[2];
-                const [f4,i4a,i4b,i4c] = ring[3];
-
-                const tA=st[f1][i1a], tB=st[f1][i1b], tC=st[f1][i1c];
-                st[f1][i1a]=st[f4][i4a]; st[f1][i1b]=st[f4][i4b]; st[f1][i1c]=st[f4][i4c];
-                st[f4][i4a]=st[f3][i3a]; st[f4][i4b]=st[f3][i3b]; st[f4][i4c]=st[f3][i3c];
-                st[f3][i3a]=st[f2][i2a]; st[f3][i3b]=st[f2][i2b]; st[f3][i3c]=st[f2][i2c];
-                st[f2][i2a]=tA; st[f2][i2b]=tB; st[f2][i2c]=tC;
+                if (!response.ok) throw new Error('Gemini API Error');
+                const data = await response.json();
+                const text = data.candidates[0].content.parts[0].text;
+                const cleanText = text.replace(/```json|```/g, '');
+                return type === 'json' ? JSON.parse(cleanText) : text;
+            } catch (error) {
+                console.error("Gemini Error:", error);
+                addChatMessage('Gemini', "I'm having trouble connecting to my neural network.");
+                return null;
             }
-            get(face, idx) { return this.state[face][idx]; }
         }
 
-        // --- THREE.JS & APP ---
+        // New function to append messages to chat
+        function addChatMessage(sender, text) {
+            const history = document.getElementById('chatHistory');
+            const div = document.createElement('div');
+            div.className = sender === 'User' ? 'text-right mb-2' : 'text-left mb-2';
+            
+            const bubbleColor = sender === 'User' ? 'bg-cyan-600' : 'bg-gray-700 border border-white/10';
+            
+            div.innerHTML = `
+                <div class="inline-block ${bubbleColor} px-3 py-2 rounded-lg ${sender==='User'?'rounded-tr-none':'rounded-tl-none'} text-xs text-white max-w-[90%] leading-relaxed shadow-sm">
+                    ${text}
+                </div>
+            `;
+            history.appendChild(div);
+            history.scrollTop = history.scrollHeight;
+        }
+
+        async function handleUserChat() {
+            const input = document.getElementById('chatInput');
+            const msg = input.value.trim();
+            if (!msg) return;
+            
+            addChatMessage('User', msg);
+            input.value = '';
+            
+            // Add typing indicator
+            const history = document.getElementById('chatHistory');
+            const loadingId = 'typing-' + Date.now();
+            const loadingDiv = document.createElement('div');
+            loadingDiv.id = loadingId;
+            loadingDiv.className = 'text-left mb-2';
+            loadingDiv.innerHTML = `<div class="inline-block bg-gray-700 px-3 py-2 rounded-lg rounded-tl-none text-xs text-gray-400"><span class="animate-pulse">Typing...</span></div>`;
+            history.appendChild(loadingDiv);
+            history.scrollTop = history.scrollHeight;
+
+            const prompt = `You are CUBE.AI, a witty and helpful Rubik's Cube expert and simulation assistant. 
+            The user says: "${msg}". 
+            Answer briefly and helpfully. If they ask to scramble, solve, or make a pattern, explain that you can do that but they should press the button (or I can try to trigger it if I had tools, but I am just text right now).
+            Keep responses under 30 words usually. Be friendly.`;
+
+            const reply = await callGemini(prompt);
+            
+            // Remove typing indicator
+            const loader = document.getElementById(loadingId);
+            if(loader) loader.remove();
+
+            if (reply) {
+                addChatMessage('Gemini', reply.trim());
+            }
+        }
+
+        // Updated to use chat instead of bubble
+        async function geminiComment(action) {
+            const prompt = `You are CUBE.AI. User action: "${action}". Write a witty, 1-sentence reaction (max 12 words).`;
+            const reply = await callGemini(prompt);
+            if (reply) addChatMessage('Gemini', reply.trim());
+        }
+
+        // NEW: Coach Feature
+        async function getCoachHint() {
+            if (isAnimating) return;
+            if (masterHistory.length === 0) {
+                addChatMessage('Gemini', "The cube is already solved! Scramble it first if you want a challenge.");
+                setStatus("Cube is solved!");
+                return;
+            }
+
+            addChatMessage('Gemini', "Analyzing your cube state...");
+            
+            const historyStr = masterHistory.join(" ");
+            const prompt = `I have a Rubik's Cube. I started from solved and applied these moves: "${historyStr}".
+            Act as a Rubik's Cube coach. Give me a ONE sentence hint on what I should focus on next to solve it. 
+            Do NOT give me the full solution. Just a strategic tip (e.g., "Focus on the white cross" or "You're close, orient the corners").`;
+
+            const reply = await callGemini(prompt);
+            if (reply) {
+                addChatMessage('Gemini', `💡 Coach: ${reply.trim()}`);
+            }
+        }
+
+        async function generatePattern() {
+            if (isAnimating || masterHistory.length > 0) {
+                setStatus("Please Solve First!");
+                addChatMessage('Gemini', "I can't apply a pattern to a scrambled cube. Solve it first!");
+                return;
+            }
+
+            setStatus("Gemini Dreaming...", true);
+            addChatMessage('Gemini', "Thinking of a cool pattern...");
+            
+            const prompt = `Generate a cool, valid Rubik's Cube pattern algorithm using standard notation.
+            Examples: Checkerboard (M2 E2 S2), Cube in a Cube, Superflip.
+            Return ONLY a JSON object: { "name": "Pattern Name", "sequence": "Move Sequence" }. 
+            Use only basic moves: R, L, U, D, F, B and ' or 2 modifiers. Space separated.`;
+
+            const data = await callGemini(prompt, 'json');
+            
+            if (data && data.sequence) {
+                setStatus(`Pattern: ${data.name}`);
+                addChatMessage('Gemini', `Applying pattern: ${data.name} ✨`);
+                
+                // Robust Parsing
+                const rawMoves = parseMoveSequence(data.sequence);
+                
+                runSequence(rawMoves, true, () => {
+                    document.getElementById('btnSolve').disabled = false;
+                    setStatus(data.name);
+                });
+            } else {
+                setStatus("Gemini failed to dream.");
+                addChatMessage('Gemini', "I couldn't think of a pattern right now.");
+            }
+        }
+        
+        // Helper to safely parse strings into valid moves
+        function parseMoveSequence(str) {
+            const validBase = ['R', 'L', 'U', 'D', 'F', 'B'];
+            // Remove parens, split by space or comma
+            const tokens = str.replace(/[(),]/g, ' ').split(/\s+/);
+            const cleanMoves = [];
+            
+            tokens.forEach(t => {
+                if(!t) return;
+                const upper = t.toUpperCase();
+                const base = upper.charAt(0);
+                if(!validBase.includes(base)) return; 
+                
+                const isPrime = upper.includes("'");
+                const isDouble = upper.includes("2");
+                const key = base + (isPrime ? "'" : "");
+                
+                if (isDouble) {
+                    cleanMoves.push(key, key);
+                } else {
+                    cleanMoves.push(key);
+                }
+            });
+            return cleanMoves;
+        }
+
+        // --- THREE.JS & APP LOGIC ---
         
         let scene, camera, renderer, pivot;
         let allCubies = [];
-        let virtualCube = new VirtualCube();
         let isAnimating = false;
         let moveQueue = [];
         let animSpeed = 0.25;
-        let masterHistory = [];
+        let masterHistory = []; 
 
         function init() {
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x111827);
+            scene.background = new THREE.Color(0x0f172a); 
+            scene.fog = new THREE.FogExp2(0x0f172a, 0.02);
+
             camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 100);
             camera.position.set(6, 5, 8);
             camera.lookAt(0,0,0);
+            
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             document.body.appendChild(renderer.domElement);
             
-            const light = new THREE.DirectionalLight(0xffffff, 1);
-            light.position.set(10, 20, 10);
-            scene.add(light);
-            scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+            const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambient);
+            const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+            dirLight.position.set(10, 20, 10);
+            scene.add(dirLight);
+            const rimLight = new THREE.DirectionalLight(0x06b6d4, 0.8);
+            rimLight.position.set(-10, 5, -10);
+            scene.add(rimLight);
 
             pivot = new THREE.Object3D();
             scene.add(pivot);
@@ -130,40 +353,34 @@
             createCube();
             setupInputs();
             window.addEventListener('resize', onWindowResize);
+            
+            setTimeout(() => addChatMessage('Gemini', "System initialized. Ready to solve!"), 1000);
             animate();
         }
 
         function createCube() {
             const geo = new THREE.BoxGeometry(0.95, 0.95, 0.95);
-            
-            // Safe Texture Generation (No ctx.roundRect)
+            const bevelGeo = new THREE.BoxGeometry(0.92, 0.92, 0.92); 
+
             const genTex = (c) => {
-                const cvs = document.createElement('canvas'); cvs.width=64; cvs.height=64;
+                const cvs = document.createElement('canvas'); cvs.width=128; cvs.height=128;
                 const ctx = cvs.getContext('2d');
-                ctx.fillStyle='#111'; ctx.fillRect(0,0,64,64);
+                ctx.fillStyle='#1a1a1a'; ctx.fillRect(0,0,128,128);
                 ctx.fillStyle='#'+new THREE.Color(c).getHexString();
-                
-                // Draw rounded rect manually for compatibility
-                const x=4, y=4, w=56, h=56, r=8;
+                const x=10, y=10, w=108, h=108, r=20;
                 ctx.beginPath();
-                ctx.moveTo(x+r, y);
-                ctx.lineTo(x+w-r, y);
-                ctx.quadraticCurveTo(x+w, y, x+w, y+r);
-                ctx.lineTo(x+w, y+h-r);
-                ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h);
-                ctx.lineTo(x+r, y+h);
-                ctx.quadraticCurveTo(x, y+h, x, y+h-r);
-                ctx.lineTo(x, y+r);
-                ctx.quadraticCurveTo(x, y, x+r, y);
-                ctx.closePath();
-                ctx.fill();
-                
-                return new THREE.MeshPhongMaterial({map:new THREE.CanvasTexture(cvs)});
+                ctx.moveTo(x+r, y); ctx.lineTo(x+w-r, y); ctx.quadraticCurveTo(x+w, y, x+w, y+r);
+                ctx.lineTo(x+w, y+h-r); ctx.quadraticCurveTo(x+w, y+h, x+w-r, y+h); ctx.lineTo(x+r, y+h);
+                ctx.quadraticCurveTo(x, y+h, x, y+h-r); ctx.lineTo(x, y+r); ctx.quadraticCurveTo(x, y, x+r, y);
+                ctx.closePath(); ctx.fill();
+                ctx.globalAlpha = 0.1; ctx.fillStyle = '#ffffff';
+                ctx.beginPath(); ctx.arc(30, 30, 20, 0, Math.PI*2); ctx.fill();
+                return new THREE.MeshPhongMaterial({map:new THREE.CanvasTexture(cvs), shininess: 150});
             };
 
             const mats = {
                 U:genTex(COLORS.U), D:genTex(COLORS.D), R:genTex(COLORS.R),
-                L:genTex(COLORS.L), F:genTex(COLORS.F), B:genTex(COLORS.B), Core:new THREE.MeshBasicMaterial({color:0x111})
+                L:genTex(COLORS.L), F:genTex(COLORS.F), B:genTex(COLORS.B), Core:new THREE.MeshPhongMaterial({color:0x111111})
             };
 
             for(let x=-1; x<=1; x++)
@@ -176,7 +393,8 @@
                 ];
                 const mesh = new THREE.Mesh(geo, m);
                 mesh.position.set(x*1.05, y*1.05, z*1.05);
-                mesh.userData = { pos: new THREE.Vector3(x,y,z) }; // Logical pos
+                const inner = new THREE.Mesh(bevelGeo, new THREE.MeshBasicMaterial({color:0x000000}));
+                mesh.add(inner);
                 scene.add(mesh);
                 allCubies.push(mesh);
             }
@@ -189,15 +407,23 @@
         };
         const KEYS = Object.keys(MOVES);
 
+        function manualMove(move) {
+            if(isAnimating) return;
+            runSequence([move], true, () => {
+                document.getElementById('btnSolve').disabled = false;
+            });
+        }
+
         function scramble() {
             if(isAnimating) return;
             document.getElementById('btnSolve').disabled = true;
+            geminiComment("scrambling");
             const seq = [];
             let last = '';
             for(let i=0; i<15; i++) {
                 let m;
                 do { m = KEYS[Math.floor(Math.random()*KEYS.length)]; } 
-                while(m.charAt(0) === last.charAt(0)); // Avoid same face twice for variety
+                while(m.charAt(0) === last.charAt(0));
                 seq.push(m);
                 last = m;
             }
@@ -212,38 +438,56 @@
             if(isAnimating || masterHistory.length===0) return;
             document.getElementById('btnSolve').disabled = true;
             document.getElementById('btnScramble').disabled = true;
-            setStatus('Thinking...', true);
+            document.getElementById('btnPattern').disabled = true;
+            document.getElementById('btnCoach').disabled = true;
+            
+            setStatus('Calculating...', true);
+            geminiComment("solving");
 
-            // ALGORITHM: REVERSE SEARCH OPTIMIZED
-            // This guarantees a solution from any tracked state.
-            // We optimize it to look like a smart solve (removing redundancies)
             setTimeout(() => {
-                // 1. Reverse History
+                // 1. Create raw solution (Reverse history and invert moves)
                 let sol = [...masterHistory].reverse().map(m => m.includes("'") ? m[0] : m+"'");
                 
-                // 2. Optimization Pass (The "AI" part)
-                // Cancel R R', Merge R R R -> R', etc.
+                // 2. Optimize
                 let opt = [];
                 for(let m of sol) {
-                    if(opt.length) {
-                        let prev = opt[opt.length-1];
-                        let inv = m.includes("'") ? m[0] : m+"'";
-                        if(prev === inv) { opt.pop(); continue; }
-                        if(prev === m && prev === m) { // 3 repeats
-                            opt.pop(); opt.pop(); opt.push(inv); continue;
+                    if(opt.length > 0) {
+                        const last = opt[opt.length-1];
+                        const inv = m.includes("'") ? m[0] : m+"'";
+                        
+                        // Rule 1: Cancel Inverse (e.g. R followed by R' -> remove both)
+                        if (last === inv) {
+                            opt.pop();
+                            continue;
+                        }
+                        
+                        // Rule 2: Simplify Triples (e.g. R R R -> R')
+                        if (opt.length >= 2) {
+                            const secondLast = opt[opt.length-2];
+                            if (last === m && secondLast === m) {
+                                opt.pop(); // Remove 3rd R
+                                opt.pop(); // Remove 2nd R
+                                // Replace with inverse (R')
+                                opt.push(inv); 
+                                continue;
+                            }
                         }
                     }
                     opt.push(m);
                 }
                 
-                setStatus(`Solving (${opt.length} steps)...`);
-                masterHistory = []; // Reset memory
+                setStatus(`Solving (${opt.length} moves)...`);
+                masterHistory = []; 
+                
                 runSequence(opt, false, () => {
                     document.getElementById('btnScramble').disabled = false;
+                    document.getElementById('btnPattern').disabled = false;
+                    document.getElementById('btnCoach').disabled = false;
                     setStatus('SOLVED!');
+                    geminiComment("solved successfully");
                     setTimeout(()=>setStatus('',false), 2000);
                 });
-            }, 800);
+            }, 1000);
         }
 
         function runSequence(moves, record, cb) {
@@ -261,7 +505,15 @@
         function animateMove(move, cb) {
             isAnimating = true;
             const data = MOVES[move];
-            // Find cubies
+
+            // Safe guard
+            if (!data) {
+                console.warn("Skipping invalid move:", move);
+                isAnimating = false;
+                if(cb) cb();
+                return;
+            }
+
             const group = allCubies.filter(c => {
                 const v = c.position[data.ax];
                 return Math.abs(v - (data.l * 1.05)) < 0.1;
@@ -285,7 +537,6 @@
                     
                     group.forEach(c => {
                         scene.attach(c);
-                        // Snap to grid
                         c.position.x = Math.round(c.position.x/1.05)*1.05;
                         c.position.y = Math.round(c.position.y/1.05)*1.05;
                         c.position.z = Math.round(c.position.z/1.05)*1.05;
@@ -306,7 +557,6 @@
             loop();
         }
 
-        // --- CONTROLS ---
         let drag=false, lastX, lastY;
         let angX=Math.PI/4, angY=Math.PI/6;
         
@@ -323,13 +573,34 @@
                     lastX=e.clientX; lastY=e.clientY;
                 }
             });
-            
+            cvs.addEventListener('touchstart', e=>{drag=true; lastX=e.touches[0].clientX; lastY=e.touches[0].clientY;}, {passive:false});
+            cvs.addEventListener('touchmove', e=>{
+                if(drag) {
+                    e.preventDefault();
+                    angX -= (e.touches[0].clientX-lastX)*0.01;
+                    angY -= (e.touches[0].clientY-lastY)*0.01;
+                    angY = Math.max(0.1, Math.min(Math.PI/2, angY));
+                    updateCam();
+                    lastX=e.touches[0].clientX; lastY=e.touches[0].clientY;
+                }
+            }, {passive:false});
+            window.addEventListener('touchend', ()=>drag=false);
+
             document.getElementById('btnScramble').addEventListener('click', scramble);
             document.getElementById('btnSolve').addEventListener('click', solve);
+            document.getElementById('btnPattern').addEventListener('click', generatePattern);
+            document.getElementById('btnCoach').addEventListener('click', getCoachHint);
+            document.getElementById('chatSend').addEventListener('click', handleUserChat);
+            document.getElementById('chatInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') handleUserChat();
+            });
             document.getElementById('speedSlider').addEventListener('input', e=>{
-                animSpeed = 0.1 + (e.target.value * 0.02);
+                const val = parseInt(e.target.value);
+                animSpeed = 0.1 + (val * 0.02);
+                document.getElementById('speedVal').innerText = val + "x";
             });
         }
+        
         function updateCam() {
             camera.position.x = 10 * Math.sin(angY) * Math.sin(angX);
             camera.position.z = 10 * Math.sin(angY) * Math.cos(angX);
